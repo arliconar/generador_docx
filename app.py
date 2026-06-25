@@ -60,8 +60,15 @@ class DocxApp:
                 except Exception as e_json:
                     messagebox.showwarning("Aviso JSON", f"No se pudo leer el archivo JSON asociado:\n{e_json}")
             
-            # Quitar de la UI las variables que ya vienen en el JSON
-            self.variables = {v for v in all_vars if v not in self.json_config}
+            # Quitar de la UI las variables que ya vienen en el JSON, EXCEPTO los pipelines
+            self.variables = set()
+            for v in all_vars:
+                if v in self.json_config:
+                    info = self.json_config[v]
+                    if isinstance(info, dict) and info.get("tipo") == "pipeline":
+                        self.variables.add(v)
+                else:
+                    self.variables.add(v)
             
             self.build_form()
             self.btn_generate.config(state=tk.NORMAL)
@@ -111,7 +118,14 @@ class DocxApp:
             frame_row = tk.Frame(scrollable_frame)
             frame_row.pack(fill=tk.X, pady=5, padx=20)
             
-            lbl = tk.Label(frame_row, text=var + ":", width=20, anchor="e", font=("Arial", 10))
+            # Obtener el nombre estilizado si es un pipeline
+            label_text = var
+            if var in self.json_config:
+                info = self.json_config[var]
+                if isinstance(info, dict) and info.get("tipo") == "pipeline":
+                    label_text = info.get("valor", var)
+            
+            lbl = tk.Label(frame_row, text=label_text + ":", width=25, anchor="e", font=("Arial", 10))
             lbl.pack(side=tk.LEFT, padx=5)
             
             entry = tk.Entry(frame_row, width=30, font=("Arial", 10))
@@ -144,6 +158,9 @@ class DocxApp:
                             
                         var_info["valor"] = val + 1
                         json_updated = True
+                    elif var_info.get("tipo") == "pipeline":
+                        # El valor final ya lo sacamos de la UI (context ya lo tiene)
+                        continue
                     else:
                         val = var_info.get("valor", "")
                         fmt = str(var_info.get("formato", ""))
@@ -152,7 +169,8 @@ class DocxApp:
                         else:
                             context[var_name] = val
                 else:
-                    context[var_name] = var_info
+                    if var_name not in context:
+                        context[var_name] = var_info
         
         save_path = filedialog.asksaveasfilename(
             title="Guardar Documento",
